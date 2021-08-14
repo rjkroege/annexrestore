@@ -1,22 +1,22 @@
 package main
 
 import (
-	"log"
-	"flag"
-	"os"
-	"path/filepath"
-	"strings"
 	"bytes"
 	"encoding/json"
-	"time"
-	"os/exec"
+	"flag"
 	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 func main() {
 	flag.Parse()
 
-	objectidtable, err	:= parseSnapshotList()
+	objectidtable, err := parseSnapshotList()
 	if err != nil {
 		log.Fatalf("can't get kopia infos: %v", err)
 	}
@@ -29,12 +29,11 @@ func main() {
 			log.Fatalf("can't lstat %q: %v", fn, err)
 		}
 
-
-		if fileinfo.Mode() & os.ModeSymlink == 0 {
+		if fileinfo.Mode()&os.ModeSymlink == 0 {
 			continue
 		}
-		
-		log.Println(fn,  "is a symlink")
+
+		log.Println(fn, "is a symlink")
 
 		symlinkpath, err := os.Readlink(fn)
 		if err != nil {
@@ -53,11 +52,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("can't abs %q: %v", fn, err)
 		}
-		
+
 		log.Println("absdest", absdest)
 
 		components := strings.Split(absdest, string(filepath.Separator))
-
 
 		if len(components) > 2 && components[0] == "" && components[1] == "private" && components[2] == "tmp" {
 			// Remove "private" from the components.
@@ -76,26 +74,26 @@ func main() {
 		}
 
 		srcrelpath := filepath.Dir(filepath.Join(srccomponents...))
-		
+
 		// Compute the restore source
 		restoresrc := objid + string(filepath.Separator) + filepath.Clean(filepath.Join(srcrelpath, symlinkpath))
 		log.Println("restoresrc", restoresrc)
 
 		// TODO(rjk): This is unnecessary and can be removed.
 		// Compute the restore target
-		restoretarget :=  filepath.Dir( filepath.Join(components...)) 
-			if components[0] == "" {
-				restoretarget = "/" + restoretarget
-			}
+		restoretarget := filepath.Dir(filepath.Join(components...))
+		if components[0] == "" {
+			restoretarget = "/" + restoretarget
+		}
 		log.Println("restoretarget", restoretarget)
 
 		// remove the link (kopia will do this)
-	kopia := exec.Command("/usr/local/bin/kopia", "restore", restoresrc, absdest)
-	spew, err := kopia.CombinedOutput()
-	if err != nil {
-		log.Fatal("annexrestore can't run kopia", err, "spew:", string(spew))
-	}
-	log.Println("Finished running kopia without errors, spew discarded")
+		kopia := exec.Command("/usr/local/bin/kopia", "restore", restoresrc, absdest)
+		spew, err := kopia.CombinedOutput()
+		if err != nil {
+			log.Fatal("annexrestore can't run kopia", err, "spew:", string(spew))
+		}
+		log.Println("Finished running kopia without errors, spew discarded")
 
 	}
 }
@@ -103,44 +101,44 @@ func main() {
 type ObjectIdPath map[string]string
 
 func (objectidtable ObjectIdPath) getObjectId(components []string) (string, []string) {
-		for i := 1; i < len(components); i++ {
-			path :=   filepath.Join(components[0:i]...)
-			if components[0] == "" {
-				path = "/" + path
-			}
-
-			log.Println("objectid", i, path)
-			if id, ok := objectidtable[path]; ok {
-				return id, components[i:]
-			}
+	for i := 1; i < len(components); i++ {
+		path := filepath.Join(components[0:i]...)
+		if components[0] == "" {
+			path = "/" + path
 		}
-	
+
+		log.Println("objectid", i, path)
+		if id, ok := objectidtable[path]; ok {
+			return id, components[i:]
+		}
+	}
+
 	// TODO(rjk): error handling
 	return "", []string{}
 }
 
 type KopiaSnapshot struct {
-	Id string `json:"id"`
-	Source KopiaSource `json:"source"`
-	RawStartTime string `json:"startTime"`
-	RawEndTime string `json:"endTime"`
-	endtime time.Time
-	RootEntry KopiaRootEntry `json:"rootEntry"`
+	Id           string      `json:"id"`
+	Source       KopiaSource `json:"source"`
+	RawStartTime string      `json:"startTime"`
+	RawEndTime   string      `json:"endTime"`
+	endtime      time.Time
+	RootEntry    KopiaRootEntry `json:"rootEntry"`
 }
 
 type KopiaSource struct {
-	Host string `json:"host"`
+	Host     string `json:"host"`
 	UserName string `json:"userName"`
-	Path string `json:"path"`
+	Path     string `json:"path"`
 }
 
 type KopiaRootEntry struct {
-	Obj string `json:"obj"`
+	Obj     string       `json:"obj"`
 	Summary KopiaSummary `json:"summ"`
 }
 
 type KopiaSummary struct {
-	NumFailed int  `json:"numFailed"`
+	NumFailed int `json:"numFailed"`
 }
 
 const timeformat = "2006-01-02T15:04:05.9999-07:00"
@@ -161,7 +159,7 @@ func parseSnapshotList() (ObjectIdPath, error) {
 	if err := decoder.Decode(&snapshotlist); err != nil {
 		log.Fatal("can't decode json spew", err)
 	}
-	
+
 	// That's a lot of spew.
 	// log.Println(snapshotlist)
 
@@ -189,7 +187,6 @@ func parseSnapshotList() (ObjectIdPath, error) {
 			log.Fatal("can't parse time %s: %v", sr.RawEndTime, err)
 		}
 		sr.endtime = tm
-
 
 		path := sr.Source.Path
 
