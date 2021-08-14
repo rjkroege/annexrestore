@@ -22,7 +22,7 @@ func main() {
 	}
 
 	for _, fn := range flag.Args() {
-		log.Println("arg", fn)
+		// log.Println("arg", fn)
 		fileinfo, err := os.Lstat(fn)
 		if err != nil {
 			// This is probably bad.
@@ -33,14 +33,14 @@ func main() {
 			continue
 		}
 
-		log.Println(fn, "is a symlink")
+		// log.Println(fn, "is a symlink")
 
 		symlinkpath, err := os.Readlink(fn)
 		if err != nil {
 			log.Fatalf("can't get where the symlink %q points: %v", fn, err)
 		}
 
-		log.Println("symlinkpath value", symlinkpath)
+		// log.Println("symlinkpath value", symlinkpath)
 
 		// TODO(rjk): here, I have to figure out the kopia target.
 		// mv the symlink to a different (backup) path
@@ -53,7 +53,7 @@ func main() {
 			log.Fatalf("can't abs %q: %v", fn, err)
 		}
 
-		log.Println("absdest", absdest)
+		// log.Println("absdest", absdest)
 
 		components := strings.Split(absdest, string(filepath.Separator))
 
@@ -63,12 +63,12 @@ func main() {
 			newc = append(newc, components[2:]...)
 			components = newc
 		}
-		log.Printf("%#v", components)
+		// log.Printf("%#v", components)
 
 		// find the object id: for each path by seeing if we have a match in the hash table for
 		// a prefix of components
 		objid, srccomponents := objectidtable.getObjectId(components)
-		log.Printf("%q, %#v", objid, srccomponents)
+		// log.Printf("%q, %#v", objid, srccomponents)
 		if objid == "" {
 			log.Fatalf("can't find objectid for %q", fn)
 		}
@@ -77,7 +77,7 @@ func main() {
 
 		// Compute the restore source
 		restoresrc := objid + string(filepath.Separator) + filepath.Clean(filepath.Join(srcrelpath, symlinkpath))
-		log.Println("restoresrc", restoresrc)
+		// log.Println("restoresrc", restoresrc)
 
 		// TODO(rjk): This is unnecessary and can be removed.
 		// Compute the restore target
@@ -85,7 +85,7 @@ func main() {
 		if components[0] == "" {
 			restoretarget = "/" + restoretarget
 		}
-		log.Println("restoretarget", restoretarget)
+		// log.Println("restoretarget", restoretarget)
 
 		// remove the link (kopia will do this)
 		kopia := exec.Command("/usr/local/bin/kopia", "restore", restoresrc, absdest)
@@ -93,7 +93,7 @@ func main() {
 		if err != nil {
 			log.Fatal("annexrestore can't run kopia", err, "spew:", string(spew))
 		}
-		log.Println("Finished running kopia without errors, spew discarded")
+		// log.Println("Finished running kopia without errors, spew discarded")
 
 	}
 }
@@ -107,7 +107,7 @@ func (objectidtable ObjectIdPath) getObjectId(components []string) (string, []st
 			path = "/" + path
 		}
 
-		log.Println("objectid", i, path)
+		// log.Println("objectid", i, path)
 		if id, ok := objectidtable[path]; ok {
 			return id, components[i:]
 		}
@@ -150,7 +150,7 @@ func parseSnapshotList() (ObjectIdPath, error) {
 		log.Println("can't run kopia snapshot list", err, "spew:", string(spew))
 		return ObjectIdPath{}, fmt.Errorf("can't run kopia snapshot list: %v, %s", err, "spew:", string(spew))
 	}
-	log.Println("Finished running kopia snapshot list without errors, parsing spew")
+	// log.Println("Finished running kopia snapshot list without errors, parsing spew")
 
 	buffy := bytes.NewBuffer(spew)
 	decoder := json.NewDecoder(buffy)
@@ -203,16 +203,12 @@ func parseSnapshotList() (ObjectIdPath, error) {
 		}
 	}
 
-	for k, v := range pathhash {
-		log.Printf("%q: %#v", k, v)
-	}
-
 	// Reprocess into the desired hashtable
 	objidpath := make(ObjectIdPath, len(pathhash))
 	for k, v := range pathhash {
 		objidpath[k] = v.RootEntry.Obj
 	}
 
-	log.Println(objidpath)
+	// log.Println(objidpath)
 	return objidpath, nil
 }
