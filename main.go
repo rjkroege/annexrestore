@@ -29,10 +29,11 @@ func main() {
 			log.Fatalf("can't lstat %q: %v", fn, err)
 		}
 
+		// This code is about collapsing the links found in a git-annex tree so
+		// no need to care about a file that's not a symlink.
 		if fileinfo.Mode()&os.ModeSymlink == 0 {
 			continue
 		}
-
 		// log.Println(fn, "is a symlink")
 
 		symlinkpath, err := os.Readlink(fn)
@@ -52,7 +53,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("can't abs %q: %v", fn, err)
 		}
-
 		// log.Println("absdest", absdest)
 
 		components := strings.Split(absdest, string(filepath.Separator))
@@ -63,7 +63,7 @@ func main() {
 			newc = append(newc, components[2:]...)
 			components = newc
 		}
-		// log.Printf("%#v", components)
+		// log.Printf("components of the absolute path: %#v", components)
 
 		// find the object id: for each path by seeing if we have a match in the hash table for
 		// a prefix of components
@@ -86,15 +86,21 @@ func main() {
 			restoretarget = "/" + restoretarget
 		}
 		// log.Println("restoretarget", restoretarget)
+		// log.Println("absdest", absdest)
 
-		// remove the link (kopia will do this)
+		// remove the link (kopia will do this). Actually, appears that it won't?
+		if err := os.Remove(absdest); err != nil {
+			log.Fatalf("can't remove %q: %v\n", absdest, err)
+			continue
+		}
+
 		kopia := exec.Command("/usr/local/bin/kopia", "restore", restoresrc, absdest)
 		spew, err := kopia.CombinedOutput()
 		if err != nil {
-			log.Fatal("annexrestore can't run kopia", err, "spew:", string(spew))
+			log.Fatalf("annexrestore can't run kopia %v\nspew: %s\n", err, string(spew))
+			continue
 		}
 		// log.Println("Finished running kopia without errors, spew discarded")
-
 	}
 }
 
@@ -143,11 +149,14 @@ type KopiaSummary struct {
 
 const timeformat = "2006-01-02T15:04:05.9999-07:00"
 
+// parseSnapshotList produces a map of root paths to snapshot identifiers
+// by running kopia and parsing the result. It records only the newest of
+// the snapshot ids.
 func parseSnapshotList() (ObjectIdPath, error) {
 	kopia := exec.Command("/usr/local/bin/kopia", "snapshot", "list", "--json")
 	spew, err := kopia.CombinedOutput()
 	if err != nil {
-		log.Println("can't run kopia snapshot list", err, "spew:", string(spew))
+		// log.Println("can't run kopia snapshot list", err, "spew:", string(spew))
 		return ObjectIdPath{}, fmt.Errorf("can't run kopia snapshot list: %v, %s", err, "spew:", string(spew))
 	}
 	// log.Println("Finished running kopia snapshot list without errors, parsing spew")
@@ -181,12 +190,20 @@ func parseSnapshotList() (ObjectIdPath, error) {
 			continue
 		}
 
-		// Parse the time.
-		tm, err := time.Parse(timeformat, sr.RawEndTime)
-		if err != nil {
-			log.Fatal("can't parse time %s: %v", sr.RawEndTime, err)
+		// Parse the time. Try some formats.
+		timeparsed := false
+		for _, timeformat := range []string{time.RFC3339Nano, timeformat} {
+			tm, err := time.Parse(timeformat, sr.RawEndTime)
+			if err == nil {
+				sr.endtime = tm
+				timeparsed = true
+				break
+			}
+			log.Printf("can't parse time %q: %v\n", sr.RawEndTime, err)
 		}
-		sr.endtime = tm
+		if !timeparsed {
+			log.Fatal("no valid time formats\n")
+		}
 
 		path := sr.Source.Path
 

@@ -1,0 +1,6 @@
+Edit X:annexrestore/\+Errors: 1,$d
+X:annexrestore/.*\.go: w
+
+go build
+
+{GOOS=linux GOARCH=amd64 go build && scp annexrestore ween:/usr/local/bin}
